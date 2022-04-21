@@ -54,7 +54,77 @@ Main: ; "Real" program starts here.
 	OUT    RESETPOS    ; reset odometer in case wheels moved after programming	
 	LOAD   1
 	OUT LCD
+
+	;The point of this motion loop is to get the robot to direct itself to a specific point
+	;STEP 1: Turn to correct heading
+	;STEP 2: go straight (run motors at same speed)
+	;print out the x and y distance from the point on sseg displays
+	;loop until the destination is reached
+	;add in possibility for correction: 
+
+	;step one get angle
+	;get x and y displacement
+	;take atan2
+	;use turn function from sample code
+TurnLoop:
+	IN XPOS
+	STORE X
+	LOAD XGoal
+	SUB  x
+	STORE dX
+	OUT SSEG1
+
+	IN YPOS
+	STORE Y
+	LOAD YGoal
+	SUB  Y
+	STORE dY
+    OUT SSEG2
+
+	CALL Atan2;angle in AC
+	STORE ThetaGoal
+	SUB   DeadZone
+	JNEG  GoStraight ;Jump if you are close enough to the desired spot
+
+	OUT    LCD         ; Good data to display for debugging
+	JPOS   TurnRight   ; handle +/- separately
+TurnLeft:
+	; If the angle is small, we don't want to do anything.
+	ADD    DeadZone
+	JPOS   NoTurn
+	; otherwise, turn CCW
+	LOAD   RSlow
+	JUMP   Turn
+TurnRight:
+	SUB    DeadZone    ; if near 0, don't turn
+	JNEG   NoTurn
+	LOAD   FSlow
+	JUMP   Turn
+NoTurn:
+	LOADI  0           ; new LOADI instruction
+	JUMP   Turn
 	
+DeadZone:  DW 5        ; Note that you can place data anywhere.
+
+Turn: 
+    OUT    LVELCMD
+	       ; for debugging purposes
+	; send the negated number to the right wheel
+	LOADI  0
+	SUB    Temp        ; AC = 0 - velocity
+	OUT    RVELCMD          ; Just be careful that it doesn't get executed.
+	
+	JUMP TurnLoop
+
+GoStraight:
+	CALL L2Estimate;the distance formula, AC=distance
+	OUT LCD
+	SUB  DeadZone
+	JNEG Die
+	LOAD FMid
+	OUT  RVELCMD
+	OUT  LVELCMD
+
 	
 Die:
 ; Sometimes it's useful to permanently stop execution.
@@ -64,8 +134,8 @@ Die:
 	OUT    LVELCMD
 	OUT    RVELCMD
 	OUT    SONAREN
-	LOAD   DEAD         ; An indication that we are dead
-	;OUT    SSEG2
+	;LOAD   DEAD         ; An indication that we are dead
+	OUT    SSEG2
 Forever:
 	JUMP   Forever      ; Do this forever.
 	DEAD:  DW &HDEAD    ; Example of a "local" variable
@@ -75,34 +145,76 @@ Forever:
 ;* Subroutines
 ;***************************************************************
 
-CalcError:
-	IN XPOS
-	SUB XGoal
-	STORE dX
-	STORE AtanX
-	STORE m16sA
-	STORE m16sB
-	CALL Mult16s
-	STORE temp
-
-	IN YPOS
-	SUB YGoal
-	STORE dY
-	STORE AtanY
-	STORE m16sA
-	STORE m16sB
-	CALL Mult16s
-
-	ADD  temp
-	STORE d16sN
-	STORE d16sD
-	CALL  Div16s
-	LOAD dres16sQ
-
-	STORE DistErr
-	CALL  Atan2
-	STORE ThetaGoal
+;*******************************************************************************
+; L2Estimate:  Pythagorean distance estimation
+; Written by Kevin Johnson.  No licence or copyright applied.
+; Warning: this is *not* an exact function.  I think it's most wrong
+; on the axes, and maybe at 45 degrees.
+; To use:
+; - Store X and Y offset in L2X and L2Y.
+; - Call L2Estimate
+; - Result is returned in AC.
+; Result will be in same units as inputs.
+; Requires Abs and Mult16s subroutines.
+;*******************************************************************************
+L2Estimate:
+	; take abs() of each value, and find the largest one
+	LOAD   dX
+	CALL   Abs
+	STORE  L2T1
+	LOAD   dY
+	CALL   Abs
+	SUB    L2T1
+	JNEG   GDSwap    ; swap if needed to get largest value in X
+	ADD    L2T1
+CalcDist:
+	; Calculation is max(X,Y)*0.961+min(X,Y)*0.406
+	STORE  m16sa
+	LOAD   twofoursix       ; max * 246
+	STORE  m16sB
+	CALL   Mult16s
+	LOAD   mres16sH
+	SHIFT  8
+	STORE  L2T2
+	LOAD   mres16sL
+	SHIFT  -8        ; / 256
+	AND    LowByte
+	OR     L2T2
+	STORE  L2T3
+	LOAD   L2T1
+	STORE  m16sa
+	LOAD   onezerofour       ; min * 104
+	STORE  m16sB
+	CALL   Mult16s
+	LOAD   mres16sH
+	SHIFT  8
+	STORE  L2T2
+	LOAD   mres16sL
+	SHIFT  -8        ; / 256
+	AND    LowByte
+	OR     L2T2
+	ADD    L2T3     ; sum
 	RETURN
+GDSwap: ; swaps the incoming X and Y
+	ADD    L2T1
+	STORE  L2T2
+	LOAD   L2T1
+	STORE  L2T3
+	LOAD   L2T2
+	STORE  L2T1
+	LOAD   L2T3
+	JUMP   CalcDist
+L2X:  DW 0
+L2Y:  DW 0
+L2T1: DW 0
+L2T2: DW 0
+L2T3: DW 0
+
+
+onezerofour: DW 104
+twofoursix: DW 246
+yintercept:	DW 1480
+
 
 ; Converts an angle to [0,359]
 Mod360:
@@ -374,14 +486,14 @@ Abs_r:
 ;******************************************************************************;
 
 Atan2:
-	LOAD   AtanY
+	LOAD   dY
 	CALL   Abs          ; abs(y)
 	STORE  AtanT
-	LOAD   AtanX        ; abs(x)
+	LOAD   dX        ; abs(x)
 	CALL   Abs
 	SUB    AtanT        ; abs(x) - abs(y)
 	JNEG   A2_sw        ; if abs(y) > abs(x), switch arguments.
-	LOAD   AtanX        ; Octants 1, 4, 5, 8
+	LOAD   X        ; Octants 1, 4, 5, 8
 	JNEG   A2_R3
 	CALL   A2_calc      ; Octants 1, 8
 	JNEG   A2_R1n
@@ -394,12 +506,12 @@ A2_R3: ; region 3
 	ADDI   180          ; theta' = theta + 180
 	RETURN
 A2_sw: ; switch arguments; octants 2, 3, 6, 7 
-	LOAD   AtanY        ; Swap input arguments
+	LOAD   dY        ; Swap input arguments
 	STORE  AtanT
-	LOAD   AtanX
-	STORE  AtanY
+	LOAD   dX
+	STORE  dY
 	LOAD   AtanT
-	STORE  AtanX
+	STORE  dX
 	JPOS   A2_R2        ; If Y positive, octants 2,3
 	CALL   A2_calc      ; else octants 6, 7
 	XOR    NegOne
@@ -414,9 +526,9 @@ A2_R2: ; region 2
 	RETURN
 A2_calc:
 	; calculates R/(1 + 0.28125*R^2)
-	LOAD   AtanY
+	LOAD   dY
 	STORE  d16sN        ; Y in numerator
-	LOAD   AtanX
+	LOAD   dX
 	STORE  d16sD        ; X in denominator
 	CALL   A2_div       ; divide
 	LOAD   dres16sQ     ; get the quotient (remainder ignored)
@@ -483,8 +595,7 @@ A2_DD:
 	SHIFT  -1           ; have to scale denominator
 	STORE  d16sD
 	JUMP   A2_DL
-AtanX:      DW 0
-AtanY:      DW 0
+
 AtanRatio:  DW 0        ; =y/x
 AtanT:      DW 0        ; temporary value
 A2c:        DW 72       ; 72/256=0.28125, with 8 fractional bits
