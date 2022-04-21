@@ -52,8 +52,7 @@ WaitForUser:
 ;***************************************************************
 Main: ; "Real" program starts here.
 	OUT    RESETPOS    ; reset odometer in case wheels moved after programming	
-	LOAD   1
-	OUT LCD
+
 
 	;The point of this motion loop is to get the robot to direct itself to a specific point
 	;STEP 1: Turn to correct heading
@@ -72,21 +71,24 @@ TurnLoop:
 	LOAD XGoal
 	SUB  x
 	STORE dX
-	OUT SSEG1
+	OUT SSEG1 ;writes dX to screen
 
 	IN YPOS
 	STORE Y
 	LOAD YGoal
 	SUB  Y
 	STORE dY
-    OUT SSEG2
+    OUT SSEG2 ;writes dY to screen
 
-	CALL Atan2;angle in AC
+	IN theta
+	STORE CurrTheta
+
+	CALL Atan2; desired angle in AC ;SHOULD be 45 degrees
 	STORE ThetaGoal
-	SUB   DeadZone
-	JNEG  GoStraight ;Jump if you are close enough to the desired spot
+	SUB CurrTheta
+	STORE dTheta
+	OUT LCD ;dTheta written to LCD ;SHOULD be 45 degrees; should start at 0x2D and decrease, or 0xFFD2 and increase to 0
 
-	OUT    LCD         ; Good data to display for debugging
 	JPOS   TurnRight   ; handle +/- separately
 TurnLeft:
 	; If the angle is small, we don't want to do anything.
@@ -94,36 +96,56 @@ TurnLeft:
 	JPOS   NoTurn
 	; otherwise, turn CCW
 	LOAD   RSlow
-	JUMP   Turn
+	OUT    LVELCMD
+	LOADI  FSLOW
+	OUT    RVELCMD
+	JUMP   TurnLoop
 TurnRight:
 	SUB    DeadZone    ; if near 0, don't turn
 	JNEG   NoTurn
 	LOAD   FSlow
-	JUMP   Turn
+	OUT    LVELCMD
+	SUB    RSlow   ; AC = 0 - velocity
+	OUT    RVELCMD
+	JUMP   TurnLoop
 NoTurn:
 	LOADI  0           ; new LOADI instruction
-	JUMP   Turn
+	OUT    LVELCMD
+	OUT    RVELCMD
+	OUT LCD ;ZERO the LCVD to signify that we are changing from turning to going straight
+	CALL   Wait1
+	JUMP   GoStraight ;GoStraight when no turn is required
+	;TO DO: Add A beep for turning to the right spot
 	
 DeadZone:  DW 5        ; Note that you can place data anywhere.
 
-Turn: 
-    OUT    LVELCMD
-	       ; for debugging purposes
-	; send the negated number to the right wheel
-	LOADI  0
-	SUB    Temp        ; AC = 0 - velocity
-	OUT    RVELCMD          ; Just be careful that it doesn't get executed.
-	
-	JUMP TurnLoop
+
 
 GoStraight:
+
+
+	IN XPOS
+	STORE X
+	LOAD XGoal
+	SUB  x
+	STORE dX
+	OUT SSEG1 ;writes dX to screen
+
+	IN YPOS
+	STORE Y
+	LOAD YGoal
+	SUB  Y
+	STORE dY
+    OUT SSEG2 ;writes dY to screen
+
 	CALL L2Estimate;the distance formula, AC=distance
 	OUT LCD
-	SUB  DeadZone
-	JNEG Die
+	SUB DeadZone
+	JNEG Die ;IF the distance reached within the Deadzone, Die
 	LOAD FMid
 	OUT  RVELCMD
 	OUT  LVELCMD
+	JUMP GoStraight
 
 	
 Die:
@@ -607,11 +629,13 @@ A2cd:       DW 14668    ; = 180/pi with 8 fractional bits
 ;* Variables
 ;***************************************************************
 Temp:     DW 0 ; "Temp" is not a great name, but can be useful
-XGoal:    DW -100
+XGoal:    DW 500
 YGoal:	  DW 500
 dX:       DW 0
 dY:       DW 0
 ThetaGoal: DW 0
+CurrTheta: DW 0
+dTheta: DW 0
 X:		DW 0
 Y:		DW	0
 DistErr: DW 0
