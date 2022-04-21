@@ -114,6 +114,7 @@ NoTurn:
 	OUT    RVELCMD
 	OUT LCD ;ZERO the LCVD to signify that we are changing from turning to going straight
 	CALL   Wait1
+	OUT BEEP
 	JUMP   GoStraight ;GoStraight when no turn is required
 	;TO DO: Add A beep for turning to the right spot
 	
@@ -139,13 +140,43 @@ GoStraight:
     OUT SSEG2 ;writes dY to screen
 
 	CALL L2Estimate;the distance formula, AC=distance
+	SUB StopDist
+	STORE DistErr
 	OUT LCD
-	SUB DeadZone
-	JNEG Die ;IF the distance reached within the Deadzone, Die
-	LOAD FMid
+	OUT RPOS ; after calculating distance, reset encoders
+	OUT LPOS
+
+;while Encoder val is less than distance,
+LoopStraight:
+
+	IN XPOS
+	STORE X
+	LOAD XGoal
+	SUB  x
+	STORE dX
+	OUT SSEG1 ;writes dX to screen
+
+	IN YPOS
+	STORE Y
+	LOAD YGoal
+	SUB  Y
+	STORE dY
+    OUT SSEG2
+
+	IN RPOS
+	SUB DistErr
+	JPOS Die
+	
+	LOAD FMid ;whatever speed we want to travel at
 	OUT  RVELCMD
 	OUT  LVELCMD
-	JUMP GoStraight
+	JUMP LoopStraight ;1.05 mm/count on encoders. units LVEL and RVEL are approximately 1.05 mm/s
+	;The acceleration (including deceleration) of each wheel is controlled to 512units/s.  An important side effect of 
+;this is that overshoot can be calculated and accounted for.  In general, the distance required to change velocity 
+;is 𝑣12− 𝑣22/2𝑎 , so, simplified and applied to this robot, the distance required to stop can be estimated by 
+;𝑉𝐸𝐿2/ 1024  (where both VEL and the resulting distance are in robot units).  Extending this to rotations, 
+;assuming in-place rotations with equal but opposite wheel velocities 𝑉𝐸𝐿𝑡𝑢𝑟𝑛 , overshoot (in degrees) can be 
+;estimated as 𝑉𝐸𝐿𝑡𝑢𝑟𝑛2 2030⁄ 
 
 	
 Die:
@@ -157,7 +188,11 @@ Die:
 	OUT    RVELCMD
 	OUT    SONAREN
 	;LOAD   DEAD         ; An indication that we are dead
+	IN     XPOS
+	OUT    SSEG1
+	IN     YPOS
 	OUT    SSEG2
+	OUT    BEEP
 Forever:
 	JUMP   Forever      ; Do this forever.
 	DEAD:  DW &HDEAD    ; Example of a "local" variable
@@ -689,6 +724,8 @@ FMid:     DW 350       ; 350 is a medium speed
 RMid:     DW -350
 FFast:    DW 500       ; 500 is almost max speed (511 is max)
 RFast:    DW -500
+FMidSq:   DW 122500 ; the square of 350 for calculations
+StopDist: DW 119    ; the approximate distance in robot units it takes to stop the robot at medium speed
 
 MinBatt:  DW 70       ; 14.0V - minimum safe battery voltage
 I2CWCmd:  DW &H1190    ; write one i2c byte, read one byte, addr 0x90
