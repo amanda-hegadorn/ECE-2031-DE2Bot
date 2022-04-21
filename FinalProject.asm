@@ -113,7 +113,9 @@ NoTurn:
 	OUT    LVELCMD
 	OUT    RVELCMD
 	OUT LCD ;ZERO the LCVD to signify that we are changing from turning to going straight
+	OUT BEEP
 	CALL   Wait1
+	LOAD ZERO
 	OUT BEEP
 	JUMP   GoStraight ;GoStraight when no turn is required
 	;TO DO: Add A beep for turning to the right spot
@@ -165,7 +167,7 @@ LoopStraight:
 
 	IN RPOS
 	SUB DistErr
-	JPOS Die
+	JNEG Die
 	
 	LOAD FMid ;whatever speed we want to travel at
 	OUT  RVELCMD
@@ -192,6 +194,9 @@ Die:
 	OUT    SSEG1
 	IN     YPOS
 	OUT    SSEG2
+	;OUT    BEEP
+	CALL   Wait1
+	LOAD   ZERO
 	OUT    BEEP
 Forever:
 	JUMP   Forever      ; Do this forever.
