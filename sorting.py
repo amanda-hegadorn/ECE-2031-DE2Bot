@@ -29,9 +29,12 @@ print(df_mat_dist)
 
 # Find the closest point to the starting point, different from diagonal and save results
 # Greedy algorithm
-for _ in range(npoints-1):
+for _ in range(npoints):
     closest_dist = df_mat_dist.loc[closest_idx, ~df_mat_dist.index.isin(path_points)].min()
     closest_idx = df_mat_dist.loc[closest_idx, ~df_mat_dist.index.isin(path_points)].idxmin()
     path_points.append(closest_idx)
     path_length += closest_dist
 print(path_points, path_length)
+
+for point in range(npoints+1):
+    print(sample[path_points[point]])
