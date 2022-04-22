@@ -10,11 +10,13 @@ Init:
 	OUT    LVELCMD     ; Stop motors
 	OUT    RVELCMD
 	OUT    SONAREN     ; Disable sonar (optional)
-	;OUT    BEEP        ; Stop any beeping (optional)
+	OUT    BEEP        ; Stop any beeping (optional)
 	
 	CALL   SetupI2C    ; Configure the I2C to read the battery voltage
 	CALL   BattCheck   ; Get battery voltage (and end if too low).
 	OUT    LCD         ; Display battery voltage (hex, tenths of volts)
+
+WaitForCoordinates: ;TO DO: Add coordinate entry code here
 
 WaitForSafety:
 	; This loop will wait for the user to toggle SW17.  Note that
@@ -85,27 +87,28 @@ TurnLoop:
 
 	CALL Atan2; desired angle in AC ;SHOULD be 45 degrees
 	STORE ThetaGoal
+	;SUB   StopDistTurns needed for overshoot when fast
 	SUB CurrTheta
 	STORE dTheta
 	OUT LCD ;dTheta written to LCD ;SHOULD be 45 degrees; should start at 0x2D and decrease, or 0xFFD2 and increase to 0
 
-	JPOS   TurnRight   ; handle +/- separately
+	JPOS   TurnRight   ; handle +/- separately ;THIS might be wrong, change direction of turn if going too far
 TurnLeft:
 	; If the angle is small, we don't want to do anything.
 	ADD    DeadZone
 	JPOS   NoTurn
 	; otherwise, turn CCW
-	LOAD   RSlow
+	LOADI   250
 	OUT    LVELCMD
-	LOADI  FSLOW
+	LOADI  -250
 	OUT    RVELCMD
 	JUMP   TurnLoop
 TurnRight:
 	SUB    DeadZone    ; if near 0, don't turn
 	JNEG   NoTurn
-	LOAD   FSlow
+	LOAD   250
 	OUT    LVELCMD
-	SUB    RSlow   ; AC = 0 - velocity
+	LOAD    -250   ; AC = 0 - velocity
 	OUT    RVELCMD
 	JUMP   TurnLoop
 NoTurn:
@@ -113,12 +116,17 @@ NoTurn:
 	OUT    LVELCMD
 	OUT    RVELCMD
 	OUT LCD ;ZERO the LCVD to signify that we are changing from turning to going straight
+	LOAD Four
 	OUT BEEP
 	CALL   Wait1
 	LOAD ZERO
 	OUT BEEP
-	JUMP   GoStraight ;GoStraight when no turn is required
+	IN  theta
+	OUT LCD
+	JUMP Die
+	;JUMP   GoStraight ;GoStraight when no turn is required
 	;TO DO: Add A beep for turning to the right spot
+	;TO DO: Add turn correction
 	
 DeadZone:  DW 5        ; Note that you can place data anywhere.
 
@@ -142,43 +150,28 @@ GoStraight:
     OUT SSEG2 ;writes dY to screen
 
 	CALL L2Estimate;the distance formula, AC=distance
-	SUB StopDist
+	;SUB StopDist
+
 	STORE DistErr
 	OUT LCD
-	OUT RPOS ; after calculating distance, reset encoders
-	OUT LPOS
+	;LOAD ZERO
+	;OUT RPOS ; after calculating distance, reset encoders
+	;OUT LPOS
 
-;while Encoder val is less than distance,
-LoopStraight:
-
-	IN XPOS
-	STORE X
-	LOAD XGoal
-	SUB  x
-	STORE dX
-	OUT SSEG1 ;writes dX to screen
-
-	IN YPOS
-	STORE Y
-	LOAD YGoal
-	SUB  Y
-	STORE dY
-    OUT SSEG2
-
-	IN RPOS
+	;IN RPOS
 	SUB DistErr
 	JNEG Die
 	
 	LOAD FMid ;whatever speed we want to travel at
 	OUT  RVELCMD
 	OUT  LVELCMD
-	JUMP LoopStraight ;1.05 mm/count on encoders. units LVEL and RVEL are approximately 1.05 mm/s
+	JUMP GoStraight ;1.05 mm/count on encoders. units LVEL and RVEL are approximately 1.05 mm/s
 	;The acceleration (including deceleration) of each wheel is controlled to 512units/s.  An important side effect of 
 ;this is that overshoot can be calculated and accounted for.  In general, the distance required to change velocity 
 ;is 𝑣12− 𝑣22/2𝑎 , so, simplified and applied to this robot, the distance required to stop can be estimated by 
 ;𝑉𝐸𝐿2/ 1024  (where both VEL and the resulting distance are in robot units).  Extending this to rotations, 
 ;assuming in-place rotations with equal but opposite wheel velocities 𝑉𝐸𝐿𝑡𝑢𝑟𝑛 , overshoot (in degrees) can be 
-;estimated as 𝑉𝐸𝐿𝑡𝑢𝑟𝑛2 2030⁄ 
+;estimated as 𝑉𝐸𝐿𝑡𝑢𝑟𝑛2/ 2030⁄ 
 
 	
 Die:
@@ -676,6 +669,7 @@ dY:       DW 0
 ThetaGoal: DW 0
 CurrTheta: DW 0
 dTheta: DW 0
+StopDistTurn: DW 123 ;FFAST=500, 500^2/2030 =123
 X:		DW 0
 Y:		DW	0
 DistErr: DW 0
