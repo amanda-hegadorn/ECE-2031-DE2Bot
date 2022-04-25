@@ -46,7 +46,7 @@ CONTENT
            021 : BD0C;  -- 	LOADI &H050C
            022 : 10BF;  -- 	STORE pY
            023 : 08BD;  -- 	LOAD N 
-           024 : 6FF5;  -- 	ADDI -11
+           024 : 6FF4;  -- 	ADDI -12
            025 : 407F;  -- 	JZERO Die
            026 : 70BE;  -- 	ILOAD pX
            027 : 10B9;  -- 	STORE DesX
@@ -207,7 +207,7 @@ CONTENT
            0C2 : 0028;  -- DeadBand: dw 40
            0C3 : 0489;  -- MaxDistX: dw 1161 
            0C4 : 05AB;  -- MaxDistY: dw 1451
-           0C5 : 012C;  -- FullSpeed: dw 300
+           0C5 : 015E;  -- FullSpeed: dw 350
            0C6 : 0000;  -- Temp: dw 0 ;for random math
            0C7 : 0000;  -- ResLR: dw 0
            0C8 : 0000;  -- LEDMask: DW 0;

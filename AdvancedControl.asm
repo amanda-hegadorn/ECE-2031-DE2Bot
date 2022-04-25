@@ -354,7 +354,7 @@ DeadBand: dw 40
 MaxDistX: dw 1161 
 MaxDistY: dw 1451
 ;MinVel: dw 450
-FullSpeed: dw 300
+FullSpeed: dw 350
 
 Temp: dw 0 ;for random math
 ResLR: dw 0
