@@ -350,11 +350,11 @@ pY: DW 0
 R: dw 0
 L: dw 0
 
-DeadBand: dw 40
+DeadBand: dw 30
 MaxDistX: dw 1161 
 MaxDistY: dw 1451
 ;MinVel: dw 450
-FullSpeed: dw 350
+FullSpeed: dw 375
 
 Temp: dw 0 ;for random math
 ResLR: dw 0
@@ -859,23 +859,23 @@ LIN:      EQU &HC9
 
 ORG		   &H0500
 	X1: DW &H0489
-	X2: DW &H0030
-	X3: DW &HFF30
-	X4: DW &H00d8
+	X2: DW &H0489
+	X3: DW &HFB77
+	X4: DW &HFB77
 	X5: DW &H015c
-	X6: DW &HFF5c
-	X7: DW 0
-	X8: DW &H015c
+	X6: DW &H0000
+	X7: DW &HFF30
+	X8: DW &HFC77
 	X9: DW 0
 	X10: DW &H015c
 	X11: DW 0
 	X12: DW &HFB77
 
 ORG        &H050C
-	Y1: DW &H0489
-	Y2: DW &H0030
-	Y3: DW 0
-	Y4: DW &H015c
+	Y1: DW &HFA55
+	Y2: DW &H05AB
+	Y3: DW &HFA55
+	Y4: DW &H05AB
 	Y5: DW 0
 	Y6: DW &H015c
 	Y7: DW 0

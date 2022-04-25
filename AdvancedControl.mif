@@ -204,10 +204,10 @@ CONTENT
            0BF : 0000;  -- pY: DW 0
            0C0 : 0000;  -- R: dw 0
            0C1 : 0000;  -- L: dw 0
-           0C2 : 0028;  -- DeadBand: dw 40
+           0C2 : 001E;  -- DeadBand: dw 30
            0C3 : 0489;  -- MaxDistX: dw 1161 
            0C4 : 05AB;  -- MaxDistY: dw 1451
-           0C5 : 015E;  -- FullSpeed: dw 350
+           0C5 : 0177;  -- FullSpeed: dw 375
            0C6 : 0000;  -- Temp: dw 0 ;for random math
            0C7 : 0000;  -- ResLR: dw 0
            0C8 : 0000;  -- LEDMask: DW 0;
@@ -535,21 +535,21 @@ CONTENT
            20A : 1190;  -- I2CWCmd:  DW &H1190    ; write one i2c byte, read one byte, addr 0x90
            20B : 0190;  -- I2CRCmd:  DW &H0190    ; write nothing, read one byte, addr 0x90
            500 : 0489;  -- 	X1: DW &H0489
-           501 : 0030;  -- 	X2: DW &H0030
-           502 : FF30;  -- 	X3: DW &HFF30
-           503 : 00D8;  -- 	X4: DW &H00d8
+           501 : 0489;  -- 	X2: DW &H0489
+           502 : FB77;  -- 	X3: DW &HFB77
+           503 : FB77;  -- 	X4: DW &HFB77
            504 : 015C;  -- 	X5: DW &H015c
-           505 : FF5C;  -- 	X6: DW &HFF5c
-           506 : 0000;  -- 	X7: DW 0
-           507 : 015C;  -- 	X8: DW &H015c
+           505 : 0000;  -- 	X6: DW &H0000
+           506 : FF30;  -- 	X7: DW &HFF30
+           507 : FC77;  -- 	X8: DW &HFC77
            508 : 0000;  -- 	X9: DW 0
            509 : 015C;  -- 	X10: DW &H015c
            50A : 0000;  -- 	X11: DW 0
            50B : FB77;  -- 	X12: DW &HFB77
-           50C : 0489;  -- 	Y1: DW &H0489
-           50D : 0030;  -- 	Y2: DW &H0030
-           50E : 0000;  -- 	Y3: DW 0
-           50F : 015C;  -- 	Y4: DW &H015c
+           50C : FA55;  -- 	Y1: DW &HFA55
+           50D : 05AB;  -- 	Y2: DW &H05AB
+           50E : FA55;  -- 	Y3: DW &HFA55
+           50F : 05AB;  -- 	Y4: DW &H05AB
            510 : 0000;  -- 	Y5: DW 0
            511 : 015C;  -- 	Y6: DW &H015c
            512 : 0000;  -- 	Y7: DW 0
