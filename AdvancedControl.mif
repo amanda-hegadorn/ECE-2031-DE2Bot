@@ -183,7 +183,7 @@ CONTENT
            0AA : 0000;  -- N: dw 0 ;This is the coordinate counter
            0AB : 0000;  -- R: dw 0
            0AC : 0000;  -- L: dw 0
-           0AD : 0046;  -- DeadBand: dw 70
+           0AD : 0032;  -- DeadBand: dw 50
            0AE : 0489;  -- MaxDistX: dw 1161 
            0AF : 05AB;  -- MaxDistY: dw 1451
            0B0 : 00FA;  -- FullSpeed: dw 250

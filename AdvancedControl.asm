@@ -309,7 +309,7 @@ N: dw 0 ;This is the coordinate counter
 R: dw 0
 L: dw 0
 
-DeadBand: dw 70
+DeadBand: dw 50
 MaxDistX: dw 1161 
 MaxDistY: dw 1451
 ;MinVel: dw 450
