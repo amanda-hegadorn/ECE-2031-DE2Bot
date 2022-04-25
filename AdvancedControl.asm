@@ -1,5 +1,5 @@
 
-ORG        &H000       
+ORG        &H000
 	JUMP   Init
 
 
@@ -53,8 +53,37 @@ WaitForUser:
 	OUT    XLEDS       ; clear LEDs once readeltaY to continue
 ;************************************************************************
 Main: ; "Real" program starts here.
-	OUT    RESETPOS    ; reset odometry in case wheels moved after programming	
+	OUT    RESETPOS    ; reset odometry in case wheels moved after programming
+
+	LOADI &H0500
+	STORE pX
+	LOADI &H050C
+	STORE pY
+
 	;TO DO: Add capability to get Nth x and y entries and set them as DesX and DesY
+Next:
+	LOAD N 
+	ADDI -12
+	JZERO Die
+
+	ILOAD pX
+	STORE DesX
+	
+	ILOAD pY
+	STORE DesY
+	
+	LOAD pX 
+	ADD  One
+	STORE pX
+
+	LOAD pY 
+	ADD  One
+	STORE pY
+	
+	LOAD  N
+	ADDI  1
+	STORE N
+	OUT LCD
 	;afterwards, increment N to get next one on next cycle
 	;-1161 to 1161 x dir
 	;1451 y
@@ -102,7 +131,7 @@ Cont:
 	SUB   CurrTheta
 	CALL  Mod360
 	STORE dTheta
-	OUT  LCD
+	;OUT  LCD
 	;CALL WAIT1
 
 	;Set R or L depending on quadrant
@@ -110,8 +139,8 @@ Q1:	LOAD dTheta
 	SUB Deg90
 	JPOS Q2 ;jump to Quadrant 2 test
 	;Q1
-	LOADI 1
-	OUT  LCD
+	;LOADI 1
+	;OUT  LCD
 	;CALL WAIT1
 	LOAD FullSpeed
 	STORE R ;R=250
@@ -125,8 +154,8 @@ Q2:
 	SUB  Deg180
 	JPOS Q3
 	;Q2
-	LOADI 2
-	OUT  LCD
+	;LOADI 2
+	;OUT  LCD
 	;CALL WAIT1
 	LOAD ZERO
 	SUB FullSpeed
@@ -145,8 +174,8 @@ Q3:
 	ADD  Deg90
 	JPOS Q4
 
-	LOADI 3
-	OUT LCD
+	;LOADI 3
+	;OUT LCD
 	;CALL WAIT1
 	LOAD FullSpeed
 	;XOR  Negone
@@ -157,8 +186,8 @@ Q3:
 	JUMP Set
 
 Q4:
-	LOADI 4
-	OUT  LCD
+	;LOADI 4
+	;OUT  LCD
 	;CALL WAIT1
 	LOAD FullSpeed
 	STORE L
@@ -184,10 +213,21 @@ CheckDeadBand:
 	CALL Abs
 	SUB  DeadBand
 	;JNEG Main
-	JNEG Die
+	JNEG LIGHT
 	JUMP Cont
 
-
+LIGHT: 
+	;do lights
+	;if we have N=3, light 3 lights. that means send &B..0111
+	;LOAD  N
+	;OUT XLEDS
+	LOAD Four
+	OUT  BEEP
+	LOAD Two
+	CALL WAITAC
+	LOAD ZERO
+	OUT  BEEP
+	JUMP Next
 	;set motor speeds
 	;break when DesX and DesY are less than 15? (good deadband?)
 	;increment n and go back to main
@@ -298,25 +338,28 @@ CurrTheta: dw 0
 deltaX: dw 0
 deltaY: dw 0
 ;This will be stored in a table somewhere after this, with ability to increment
-DesX: dw &HA0
-DesY: dw &HA0
+DesX: dw &HF0
+DesY: dw &HF0
 dTheta: dw 0
 DesTheta: DW 0
 ;************
 N: dw 0 ;This is the coordinate counter
-
+pX: DW 0
+pY: DW 0
 
 R: dw 0
 L: dw 0
 
-DeadBand: dw 50
+DeadBand: dw 40
 MaxDistX: dw 1161 
 MaxDistY: dw 1451
 ;MinVel: dw 450
-FullSpeed: dw 250
+FullSpeed: dw 300
 
 Temp: dw 0 ;for random math
 ResLR: dw 0
+
+LEDMask: DW 0;
 
 
     ;***************************************************************
@@ -812,3 +855,32 @@ THETA:    EQU &HC2  ; Current rotational position of robot (0-359)
 RESETPOS: EQU &HC3  ; write anything here to reset odometry to 0
 RIN:      EQU &HC8
 LIN:      EQU &HC9
+
+
+ORG		   &H0500
+	X1: DW &H0489
+	X2: DW &H0030
+	X3: DW &HFF30
+	X4: DW &H00d8
+	X5: DW &H015c
+	X6: DW &HFF5c
+	X7: DW 0
+	X8: DW &H015c
+	X9: DW 0
+	X10: DW &H015c
+	X11: DW 0
+	X12: DW &HFB77
+
+ORG        &H050C
+	Y1: DW &H0489
+	Y2: DW &H0030
+	Y3: DW 0
+	Y4: DW &H015c
+	Y5: DW 0
+	Y6: DW &H015c
+	Y7: DW 0
+	Y8: DW &H015c
+	Y9: DW 0
+	Y10: DW &H015c
+	Y11: DW 0
+	Y12: DW &HFB77
