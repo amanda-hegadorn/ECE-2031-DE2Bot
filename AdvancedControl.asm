@@ -28,7 +28,7 @@ WaitForSafety:
 	; Wait for safety switch to be toggled
 	IN     XIO         ; XIO contains SAFETY signal
 	AND    Mask4       ; SAFETY signal is bit 4
-	JPOS   WaitForUser ; If ready, jump to wait for PB3
+	JPOS   WaitForUser ; If readeltaY, jump to wait for PB3
 	IN     TIMER       ; We'll use the timer value to
 	AND    Mask1       ;  blink LED17 as a reminder to toggle SW17
 	SHIFT  8           ; Shift over to LED17
@@ -48,90 +48,144 @@ WaitForUser:
 	OUT    XLEDS
 	IN     XIO         ; XIO contains KEYs
 	AND    Mask2       ; KEY3 mask (KEY0 is reset and can't be read)
-	JPOS   WaitForUser ; not ready (KEYs are active-low, hence JPOS)
+	JPOS   WaitForUser ; not readeltaY (KEYs are active-low, hence JPOS)
 	LOAD   Zero
-	OUT    XLEDS       ; clear LEDs once ready to continue
+	OUT    XLEDS       ; clear LEDs once readeltaY to continue
 ;************************************************************************
 Main: ; "Real" program starts here.
 	OUT    RESETPOS    ; reset odometry in case wheels moved after programming	
 	;TO DO: Add capability to get Nth x and y entries and set them as DesX and DesY
 	;afterwards, increment N to get next one on next cycle
-
-;This motion control algorithm is based off of tank drive controls using a joystick
-;The desired coordinate acts as control input, and the wheel velocities adjust according to the maximum and minimum velocities, scaled to the maximum and minimum distance required
-;In main, the robot goes through a loop where the dTheta, dX, and dY are measured and then velocities are adjusted according to this tank drive model:
-;Max Dist: 10 ft x, 12 ft y
-;Max coordinates, 8 ft x, 10 ft y
-;2322 Robot Coordinates X, from +1161 to -1161
-;2902 Robot Coordinates Y, from +1451 to -1451
-; 
-;V=R+L=(MaxDist-ABS(dX))*(dY/MaxDist)+dY  
-;W=R-L=(MaxDist-ABS(dy))*(dX/MaxDist)+dX
-;R=V+W/2
-;L=V-W/2
-;R and L are in robot units, scale to 200-456 for speeds
+	;-1161 to 1161 x dir
+	;1451 y
 
 Process: 
 
 	IN XPOS;read IN X, IN Y
-	STORE currX
+	STORE CurrX
 	OUT SSEG1
+	;CALL WAIT1
 
 	IN YPOS
-	STORE currY
+	STORE CurrY
 	OUT SSEG2
+	;CALL WAIT1
 
+	;calc deltaX
+	LOAD  DesX
+	SUB   CurrX
+	STORE deltaX
+	STORE AtanX
+	;OUT SSEG1
+	;CALL WAIT1
+	
+	;calc deltaY
 
-	;calc dX
-	
-	LOAD  currX
-	SUB   DesX
-	STORE dX
-	;OUT LCD
-	
-	;calc dY
-	;LOAD DesY
-	;SUB  currY
-	LOAD currY
-	SUB  DesY
-	STORE dY
-	;after storing dX and dY, check if dY error is smaller than deadband
+	LOAD DesY
+	SUB  CurrY
+	STORE deltaY
+	STORE AtanY
+	LOAD deltaY
+	;after storing deltaX and deltaY, check if deltaY error is smaller than deadband
 	CALL  Abs
 	SUB   DeadBand
-	JNEG  CheckDeadBand
+	JPOS  Cont ;if it is not 0 or negative, continue
+	JUMP  CheckDeadBand ; if it is 0 or negative, jump to check x
 
-	CALL RPL
-	CALL RML
+	;Take the tangent and determine what quadrant the angle error is in
+Cont:
+	CALL ATan2 ;call on the current deltaX and deltaY stored in atanx and atany
+	STORE DesTheta
+	IN    THETA
+	STORE CurrTheta
+	LOAD  DesTheta
+	SUB   CurrTheta
+	CALL  Mod360
+	STORE dTheta
+	OUT  LCD
+	;CALL WAIT1
 
-	;calculate R and L
-	LOAD V
-	ADD  W
-	SHIFT -1
+	;Set R or L depending on quadrant
+Q1:	LOAD dTheta
+	SUB Deg90
+	JPOS Q2 ;jump to Quadrant 2 test
+	;Q1
+	LOADI 1
+	OUT  LCD
+	;CALL WAIT1
+	LOAD FullSpeed
+	STORE R ;R=250
+	CALL  CALCL
+	STORE L ;result from calcLR in AC and in ResLR
+	JUMP Set
+
+Q2:
+	;check if Q2
+	LOAD dTheta
+	SUB  Deg180
+	JPOS Q3
+	;Q2
+	LOADI 2
+	OUT  LCD
+	;CALL WAIT1
+	LOAD ZERO
+	SUB FullSpeed
+	;LOAD FullSpeed
+	STORE L
+	CALL CALCR
+	STORE R
+	JUMP Set
+
+Q3:
+	;since we know it is either in Q3 or Q4, subtract from 180 to make negative
+	LOAD Deg360
+	SUB  dTheta
+	STORE dTheta
+	;check if Q3
+	ADD  Deg90
+	JPOS Q4
+
+	LOADI 3
+	OUT LCD
+	;CALL WAIT1
+	LOAD FullSpeed
+	;XOR  Negone
+	;ADDI 1
+	STORE L
+	CALL  CALCR
+	STORE R ;result from calcLR in AC and in ResLR
+	JUMP Set
+
+Q4:
+	LOADI 4
+	OUT  LCD
+	;CALL WAIT1
+	LOAD FullSpeed
+	STORE L
+	CALL CALCR
 	STORE R
 
-	LOAD V
-	SUB  W 
-	SHIFT -1
-	STORE L
-
-	CALL Scale
+	;set speeds
+Set:	
 	LOAD R
 	OUT  RVELCMD
+	;OUT  SSEG2
 	LOAD L
-	OUT  LCD
 	OUT LVELCMD
-	CALL WAIT1
+	;OUT SSEG1
 
+	;LOADI 10
+	;CALL WAITAC
 	JUMP Process
 	
 
 CheckDeadBand:
-	Load dY
+	Load deltaX
 	CALL Abs
 	SUB  DeadBand
 	;JNEG Main
 	JNEG Die
-	JUMP Process
+	JUMP Cont
 
 
 	;set motor speeds
@@ -141,88 +195,17 @@ CheckDeadBand:
 ;*******************
 ;SIMPLE PROCEDURES
 ;*******************
-RPL: ;R Plus L Calculation. Values must be stored in dX and dY. Result in V
-	LOAD dX
-	CALL Abs
-	STORE temp
-	LOAD MaxDistX
-	SUB  temp
-	STORE m16sA ;multA= (total-absd(x))
-
-	LOAD  dY 
-	STORE d16sN
-	LOAD  MaxDistY
-	STORE d16sD
-	CALL  Div16s ;amount of X to add stored in dres16Q, ignoring remainder. 
-	LOAD  dres16sQ
-	STORE m16sB ;multB= (dY/MaxDistY)
-
-	CALL  Mult16s
-	LOAD  mres16sL ;only the low value matters beecause 1451*% will be less than 16 bits
-
-	ADD   dY
-	STORE V
-	RETURN
-
-RML: ; R Minus L Calculation.  Values must be stored in dX and dY. Result in W
-	LOAD dY
-	CALL Abs
-	STORE temp
-	LOAD MaxDistY
-	SUB  temp
-	STORE m16sA ;multA= (total-abs(dx))
-
-	LOAD  dX
-	XOR   &HFFFF
-	ADDI  1
-	STORE d16sN
-	LOAD  MaxDistX
-	STORE d16sD
-	CALL  Div16s ;amount of X to add stored in dres16Q, ignoring remainder. 
-	LOAD  dres16sQ
-	STORE m16sB ;multB= (dY/MaxDistY)
-
-	CALL  Mult16s
-	LOAD  mres16sL ;only the low value matters beecause 1451*% will be less than 16 bits
-
-	ADD   dX
-	STORE W
-	RETURN 
-
-Scale: ;scales the distance values in RVEL and LVEL to a speed from 200 to 512
-	LOAD R
-	SHIFT -9 ;divide by approximately 512
-	JPOS ADDR
-	ADDI  -250
-	STORE R
-	JUMP  SCALEL
-ADDR:
-	ADDI 250
-	STORE R
-
-SCALEL:
-	LOAD L
-	SHIFT -9 ;divide by approximately 512
-	JPOS ADDL
-	ADDI  -250
-	STORE R
-	RETURN
-ADDL:
-	ADDI 250
-	STORE L
-
-	RETURN
-
 	
 Die:
 ; Sometimes it's useful to permanently stop execution.
 ; This will also catch the execution if it accidentally
 ; falls through from above.
-	LOAD   Zero         ; Stop everything.
+	LOAD   ZERO         ; Stop everything.
 	OUT    LVELCMD
 	OUT    RVELCMD
 	OUT    SONAREN
-	;LOAD   DEAD         ; An indication that we are dead
+	LOAD   DEAD         ; An indication that we are dead
+	OUT		LCD
 	IN     XPOS
 	OUT    SSEG1
 	IN     YPOS
@@ -236,42 +219,115 @@ Forever:
 	DEAD:  DW &HDEAD    ; Example of a "local" variable
 
 
+;calculate the side of the car that is not full speed, store result in ResLR
+CALCL:
+	;(R+L)/2=(100-ABS(dtheta*100/90))-- in percent
+	;(RL+FullSpeed)/2=(FullSpeed-ABS(dtheta*FullSpeed/90)) -- in speeds, because one (either R or L) will always be full speed
+	;dtheta*FullSpeed
+	LOAD FullSpeed 
+	STORE m16sA
+	LOAD  dTheta
+	STORE m16sB
+	CALL  Mult16s
 
+	; divide by 90
+	LOAD mres16sL ;only need low, bounds mean it will never be higher than max speed
+	STORE d16sN
+	LOAD Deg90
+	STORE d16sD
+	CALL  Div16s
+
+	;ABS
+	LOAD dres16sQ
+	CALL ABS ; take ABS of AC
+	STORE temp
+	;subtract from full speed
+	LOAD FullSpeed
+	SUB  temp
+
+	;multiply by 2
+	SHIFT 1
+	;OUT LCD
+	;CALL WAIT1 ;should be 250
+	;subtract full speed ;TO DO: I think this is redundant, and just another way to switch the sign. once operational, simplify algebra
+	SUB FullSpeed
+	STORE L
+	;OUT LCD
+	;CALL WAIT1 ;should be 250
+	;OUT   SSEG2
+	RETURN 
+
+CALCR:
+	;(R+L)/2=(100-ABS(dtheta*100/90))-- in percent
+	;(RL+FullSpeed)/2=(FullSpeed-ABS(dtheta*FullSpeed/90)) -- in speeds, because one (either R or L) will always be full speed
+	;dtheta*FullSpeed
+	LOAD FullSpeed
+	STORE m16sA
+	LOAD  dTheta
+	STORE m16sB
+	CALL  Mult16s
+
+	; divide by 90
+	LOAD mres16sL ;only need low, bounds mean it will never be higher than max speed
+	STORE d16sN
+	LOAD Deg90
+	STORE d16sD
+	CALL  Div16s
+
+	;ABS
+	LOAD dres16sQ
+	CALL ABS ; take ABS of AC
+	STORE temp
+	;subtract from full speed
+	LOAD FullSpeed
+	SUB  temp
+
+	;multiply by 2
+	SHIFT 1
+	;subtract full speed ;TO DO: I think this is redundant, and just another way to switch the sign. once operational, simplify algebra
+	SUB L
+	STORE R
+	;OUT   SSEG2
+	RETURN 
 ;*************************************************
 ;MOTION CONTROL VARIABLES
 ;*************************************************
-currX: dw 0 ;initialize current pos to 0
-currY: dw 0 ; initialize current pos to 0
-dX: dw 0
-dY: dw 0
+CurrX: dw 0 ;initialize current pos to 0
+CurrY: dw 0 ; initialize current pos to 0
+CurrTheta: dw 0
+deltaX: dw 0
+deltaY: dw 0
 ;This will be stored in a table somewhere after this, with ability to increment
-DesX: dw &H500
-DesY: dw &HF005
+DesX: dw &HA0
+DesY: dw &HA0
+dTheta: dw 0
+DesTheta: DW 0
 ;************
 N: dw 0 ;This is the coordinate counter
 
-V: dw 0 ;R+L
-W: dw 0; R-L
 
 R: dw 0
 L: dw 0
 
-DeadBand: dw 50
+DeadBand: dw 70
 MaxDistX: dw 1161 
 MaxDistY: dw 1451
-MinVel: dw 250
-MaxVel: dw 500
+;MinVel: dw 450
+FullSpeed: dw 250
 
 Temp: dw 0 ;for random math
-
+ResLR: dw 0
 
 
     ;***************************************************************
 ;* Subroutines
 ;***************************************************************
 
+
+
 ; Subroutine to wait (block) for 1 second
 Wait1:
+	STORE AC
 	OUT    TIMER
 Wloop:
 	IN     TIMER
@@ -289,8 +345,10 @@ WACLoop:
 	OUT    XLEDS       ; User-feedback that a pause is occurring.
 	SUB    WaitTime
 	JNEG   WACLoop
+	LOAD AC
 	RETURN
 	WaitTime: DW 0     ; "local" variable.
+	AC: DW 0 ;stores current AC and restores
 
 ; Converts an angle to [0,359]
 Mod360:
@@ -339,7 +397,7 @@ DeadBatt:
 GetBattLvl:
 	LOAD   I2CRCmd     ; 0x0190 (write 0B, read 1B, addr 0x90)
 	OUT    I2C_CMD     ; to I2C_CMD
-	OUT    I2C_RDY     ; start the communication
+	OUT    I2C_RdeltaY     ; start the communication
 	CALL   BlockI2C    ; wait for it to finish
 	IN     I2C_DATA    ; get the returned data
 	RETURN
@@ -352,7 +410,7 @@ SetupI2C:
 	OUT    I2C_CMD     ; to I2C_CMD register
 	LOAD   Zero        ; 0x0000 (A/D port 0, no increment)
 	OUT    I2C_DATA    ; to I2C_DATA register
-	OUT    I2C_RDY     ; start the communication
+	OUT    I2C_RdeltaY     ; start the communication
 	CALL   BlockI2C    ; wait for it to finish
 	RETURN
 	
@@ -365,7 +423,7 @@ BI2CL:
 	ADDI   1           ; this will result in ~0.1s timeout
 	STORE  Temp
 	JZERO  I2CError    ; Timeout occurred; error
-	IN     I2C_RDY     ; Read busy signal
+	IN     I2C_RdeltaY     ; Read busy signal
 	JPOS   BI2CL       ; If not 0, try again
 	RETURN             ; Else return
 I2CError:
@@ -374,6 +432,144 @@ I2CError:
 	OUT    SSEG1
 	OUT    SSEG2       ; display error message
 	JUMP   I2CError
+
+;******************************************************************************;
+; Atan2: 4-quadrant arctangent calculation                                     ;
+; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ;
+; Original code by Team AKKA, Spring 2015.                                     ;
+; Based on methods by Richard Lyons                                            ;
+; Code updated by Kevin Johnson to use software mult and div                   ;
+; No license or copyright applied.                                             ;
+; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ;
+; To use: store deltaX and deltaY in global variables AtanX and AtanY.                 ;
+; Call Atan2                                                                   ;
+; Result (angle [0,359]) is returned in AC                                     ;
+; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ;
+; Requires additional subroutines:                                             ;
+; - Mult16s: 16x16->32bit signed multiplication                                ;
+; - Div16s: 16/16->16R16 signed division                                       ;
+; - Abs: Absolute value                                                        ;
+; Requires additional constants:                                               ;
+; - One:     DW 1                                                              ;
+; - NegOne:  DW -1                                                             ;
+; - LowByte: DW &HFF                                                           ;
+;******************************************************************************;
+Atan2:
+	LOAD   AtanY
+	CALL   Abs          ; abs(y)
+	STORE  AtanT
+	LOAD   AtanX        ; abs(x)
+	CALL   Abs
+	SUB    AtanT        ; abs(x) - abs(y)
+	JNEG   A2_sw        ; if abs(y) > abs(x), switch arguments.
+	LOAD   AtanX        ; Octants 1, 4, 5, 8
+	JNEG   A2_R3
+	CALL   A2_calc      ; Octants 1, 8
+	JNEG   A2_R1n
+	RETURN              ; Return raw value if in octant 1
+A2_R1n: ; region 1 negative
+	ADDI   360          ; Add 360 if we are in octant 8
+	RETURN
+A2_R3: ; region 3
+	CALL   A2_calc      ; Octants 4, 5            
+	ADDI   180          ; theta' = theta + 180
+	RETURN
+A2_sw: ; switch arguments; octants 2, 3, 6, 7 
+	LOAD   AtanY        ; Swap input arguments
+	STORE  AtanT
+	LOAD   AtanX
+	STORE  AtanY
+	LOAD   AtanT
+	STORE  AtanX
+	JPOS   A2_R2        ; If Y positive, octants 2,3
+	CALL   A2_calc      ; else octants 6, 7
+	XOR    NegOne
+	ADDI   1            ; negate the angle
+	ADDI   270          ; theta' = 270 - theta
+	RETURN
+A2_R2: ; region 2
+	CALL   A2_calc      ; Octants 2, 3
+	XOR    NegOne
+	ADDI   1            ; negate the angle
+	ADDI   90           ; theta' = 90 - theta
+	RETURN
+A2_calc:
+	; calculates R/(1 + 0.28125*R^2)
+	LOAD   AtanY
+	STORE  d16sN        ; Y in numerator
+	LOAD   AtanX
+	STORE  d16sD        ; X in denominator
+	CALL   A2_div       ; divide
+	LOAD   dres16sQ     ; get the quotient (remainder ignored)
+	STORE  AtanRatio
+	STORE  m16sA
+	STORE  m16sB
+	CALL   A2_mult      ; X^2
+	STORE  m16sA
+	LOAD   A2c
+	STORE  m16sB
+	CALL   A2_mult
+	ADDI   256          ; 256/256+0.28125X^2
+	STORE  d16sD
+	LOAD   AtanRatio
+	STORE  d16sN        ; Ratio in numerator
+	CALL   A2_div       ; divide
+	LOAD   dres16sQ     ; get the quotient (remainder ignored)
+	STORE  m16sA        ; <= result in radians
+	LOAD   A2cd         ; degree conversion factor
+	STORE  m16sB
+	CALL   A2_mult      ; convert to degrees
+	STORE  AtanT
+	SHIFT  -7           ; check 7th bit
+	AND    One
+	JZERO  A2_rdwn      ; round down
+	LOAD   AtanT
+	SHIFT  -8
+	ADDI   1            ; round up
+	RETURN
+A2_rdwn:
+	LOAD   AtanT
+	SHIFT  -8           ; round down
+	RETURN
+A2_mult: ; multiply, and return bits 23..8 of result
+	CALL   Mult16s
+	LOAD   mres16sH
+	SHIFT  8            ; move high word of result up 8 bits
+	STORE  mres16sH
+	LOAD   mres16sL
+	SHIFT  -8           ; move low word of result down 8 bits
+	AND    LowByte
+	OR     mres16sH     ; combine high and low words of result
+	RETURN
+A2_div: ; 16-bit division scaled by 256, minimizing error
+	LOAD  Nine            ; loop 8 times (256 = 2^8)
+	STORE  AtanT
+A2_DL:
+	LOAD   AtanT
+	ADDI   -1
+	JPOS   A2_DN        ; not done; continue shifting
+	CALL   Div16s       ; do the standard division
+	RETURN
+A2_DN:
+	STORE  AtanT
+	LOAD   d16sN        ; start by trying to scale the numerator
+	SHIFT  1
+	XOR    d16sN        ; if the sign changed,
+	JNEG   A2_DD        ; switch to scaling the denominator
+	XOR    d16sN        ; get back shifted version
+	STORE  d16sN
+	JUMP   A2_DL
+A2_DD:
+	LOAD   d16sD
+	SHIFT  -1           ; have to scale denominator
+	STORE  d16sD
+	JUMP   A2_DL
+AtanX:      DW 0
+AtanY:      DW 0
+AtanRatio:  DW 0        ; =y/x
+AtanT:      DW 0        ; temporary value
+A2c:        DW 72       ; 72/256=0.28125, with 8 fractional bits
+A2cd:       DW 14668    ; = 180/pi with 8 fractional bits
 
 
 
@@ -595,9 +791,9 @@ RVEL:     EQU &H8A  ; ...
 RVELCMD:  EQU &H8B  ; ...
 I2C_CMD:  EQU &H90  ; I2C module's CMD register,
 I2C_DATA: EQU &H91  ; ... DATA register,
-I2C_RDY:  EQU &H92  ; ... and BUSY register
+I2C_RdeltaY:  EQU &H92  ; ... and BUSY register
 UART_DAT: EQU &H98  ; UART data
-UART_RDY: EQU &H98  ; UART status
+UART_RdeltaY: EQU &H98  ; UART status
 SONAR:    EQU &HA0  ; base address for more than 16 registers....
 DIST0:    EQU &HA8  ; the eight sonar distance readings
 DIST1:    EQU &HA9  ; ...

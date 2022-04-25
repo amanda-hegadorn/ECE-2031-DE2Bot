@@ -517,7 +517,6 @@ Abs:
 	ADDI   1            ; Add one (i.e. negate number)
 Abs_r:
 	RETURN
-
 ;******************************************************************************;
 ; Atan2: 4-quadrant arctangent calculation                                     ;
 ; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ;
@@ -539,16 +538,15 @@ Abs_r:
 ; - NegOne:  DW -1                                                             ;
 ; - LowByte: DW &HFF                                                           ;
 ;******************************************************************************;
-
 Atan2:
-	LOAD   dY
+	LOAD   AtanY
 	CALL   Abs          ; abs(y)
 	STORE  AtanT
-	LOAD   dX        ; abs(x)
+	LOAD   AtanX        ; abs(x)
 	CALL   Abs
 	SUB    AtanT        ; abs(x) - abs(y)
 	JNEG   A2_sw        ; if abs(y) > abs(x), switch arguments.
-	LOAD   X        ; Octants 1, 4, 5, 8
+	LOAD   AtanX        ; Octants 1, 4, 5, 8
 	JNEG   A2_R3
 	CALL   A2_calc      ; Octants 1, 8
 	JNEG   A2_R1n
@@ -561,12 +559,12 @@ A2_R3: ; region 3
 	ADDI   180          ; theta' = theta + 180
 	RETURN
 A2_sw: ; switch arguments; octants 2, 3, 6, 7 
-	LOAD   dY        ; Swap input arguments
+	LOAD   AtanY        ; Swap input arguments
 	STORE  AtanT
-	LOAD   dX
-	STORE  dY
+	LOAD   AtanX
+	STORE  AtanY
 	LOAD   AtanT
-	STORE  dX
+	STORE  AtanX
 	JPOS   A2_R2        ; If Y positive, octants 2,3
 	CALL   A2_calc      ; else octants 6, 7
 	XOR    NegOne
@@ -581,9 +579,9 @@ A2_R2: ; region 2
 	RETURN
 A2_calc:
 	; calculates R/(1 + 0.28125*R^2)
-	LOAD   dY
+	LOAD   AtanY
 	STORE  d16sN        ; Y in numerator
-	LOAD   dX
+	LOAD   AtanX
 	STORE  d16sD        ; X in denominator
 	CALL   A2_div       ; divide
 	LOAD   dres16sQ     ; get the quotient (remainder ignored)
@@ -650,12 +648,12 @@ A2_DD:
 	SHIFT  -1           ; have to scale denominator
 	STORE  d16sD
 	JUMP   A2_DL
-
+AtanX:      DW 0
+AtanY:      DW 0
 AtanRatio:  DW 0        ; =y/x
 AtanT:      DW 0        ; temporary value
 A2c:        DW 72       ; 72/256=0.28125, with 8 fractional bits
 A2cd:       DW 14668    ; = 180/pi with 8 fractional bits
-
 
 
 ;***************************************************************
