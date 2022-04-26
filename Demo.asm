@@ -1,4 +1,3 @@
-
 ORG        &H000
 	JUMP   Init
 
@@ -20,12 +19,32 @@ Init:
 	CALL   BattCheck   ; Get battery voltage (and end if too low).
 	OUT    LCD         ; Display battery voltage (hex, tenths of volts)
 
+CoordinateEntry:
+    ;This loop will wait for 12 coordinates to be entered on the DE2 board
+    ;No less and no more than 12 coordinates will be allowed.
+    ;When 12 coordinates are reached, 
+
+
+    ;PROCESS: 
+    ;variables needed: PBLast, SWITCHVAL,
+;coordinateEntry:
+    ;IN SWITCHES --save as a 16 bit binary
+    ;OUT LCD
+    ;STORE as temp
+    ;read the PB
+    ;AC-PBLAST
+    ;JNEG NextEntry
+    ;JUMP coordinateEntry
+    ;STORE PB
+
+
+
 WaitForSafety:
-	
-	; This loop will wait for the user to toggle SW17.  Note that
+; This loop will wait for the user to toggle SW17.  Note that
 	; SCOMP does not have direct access to SW17; it only has access
 	; to the SAFETY signal contained in XIO.
 	; Wait for safety switch to be toggled
+
 	IN     XIO         ; XIO contains SAFETY signal
 	AND    Mask4       ; SAFETY signal is bit 4
 	JPOS   WaitForUser ; If readeltaY, jump to wait for PB3
@@ -63,7 +82,7 @@ Main: ; "Real" program starts here.
 	;TO DO: Add capability to get Nth x and y entries and set them as DesX and DesY
 Next:
 	LOAD N 
-	ADDI -4 ;we are only doing four points right now to test motion, because I don't want to wait for them all.
+	ADDI -12
 	JZERO Die
 
 	ILOAD pX
@@ -131,17 +150,14 @@ Cont:
 	SUB   CurrTheta
 	CALL  Mod360
 	STORE dTheta
-	;OUT  LCD
-	;CALL WAIT1
+
 
 	;Set R or L depending on quadrant
 Q1:	LOAD dTheta
 	SUB Deg90
 	JPOS Q2 ;jump to Quadrant 2 test
 	;Q1
-	;LOADI 1
-	;OUT  LCD
-	;CALL WAIT1
+
 	LOAD FullSpeed
 	STORE R ;R=250
 	CALL  CALCL
@@ -154,9 +170,7 @@ Q2:
 	SUB  Deg180
 	JPOS Q3
 	;Q2
-	;LOADI 2
-	;OUT  LCD
-	;CALL WAIT1
+	
 	LOAD ZERO
 	SUB FullSpeed
 	;LOAD FullSpeed
@@ -175,8 +189,7 @@ Q3:
 	JPOS Q4
 
 	;LOADI 3
-	;OUT LCD
-	;CALL WAIT1
+
 	LOAD FullSpeed
 	;XOR  Negone
 	;ADDI 1
@@ -218,9 +231,13 @@ CheckDeadBand:
 
 LIGHT: 
 	;do lights
-	;if we have N=3, light 3 lights. that means send &B..0111
-	;LOAD  N
-	;OUT XLEDS
+	;for now, just light with total number.
+    ;worry about exact index later
+	LOAD  LedsOn
+    SHIFT 1
+    ADDI  1
+	OUT XLEDS
+    STORE LedsOn
 	LOAD Four
 	OUT  BEEP
 	LOAD Two
@@ -360,6 +377,8 @@ Temp: dw 0 ;for random math
 ResLR: dw 0
 
 LEDMask: DW 0;
+LedsOn: DW &B0000000000000000
+
 
 
     ;***************************************************************
