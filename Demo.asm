@@ -1,3 +1,4 @@
+
 ORG        &H000
 	JUMP   Init
 
@@ -10,6 +11,7 @@ Init:
 	LOAD   Zero
 	STORE  RVEL
 	STORE  LVEL ;initialize to 0
+	STORE  Count
 	OUT    LVELCMD     ; Stop motors
 	OUT    RVELCMD
 	OUT    SONAREN     ; Disable sonar (optional)
@@ -19,32 +21,83 @@ Init:
 	CALL   BattCheck   ; Get battery voltage (and end if too low).
 	OUT    LCD         ; Display battery voltage (hex, tenths of volts)
 
-CoordinateEntry:
-    ;This loop will wait for 12 coordinates to be entered on the DE2 board
-    ;No less and no more than 12 coordinates will be allowed.
-    ;When 12 coordinates are reached, 
+	LOAD XHead ; load table
+	STORE pX ; store in X table
+	LOAD YHead ; load table
+	STORE pY ; store in X table
+	;LOAD Zero ; count starts at 0
+	;STORE Count
 
+	;IN XIO
+	;AND Mask3
+	;JPOS WaitForSafety
+	JUMP CoordinateEntry
 
-    ;PROCESS: 
-    ;variables needed: PBLast, SWITCHVAL,
-;coordinateEntry:
-    ;IN SWITCHES --save as a 16 bit binary
-    ;OUT LCD
-    ;STORE as temp
-    ;read the PB
-    ;AC-PBLAST
-    ;JNEG NextEntry
-    ;JUMP coordinateEntry
-    ;STORE PB
+CoordinateEntry: 
+   ; This loop will allow the user to input the 12 (x,y) coordinates
+   ; to the DE2bot using the switches and PB1.
+   ; Use switches to enter the coordinates in binary and display on the 7 seg
+   ; PB2 will serve as an enter key 
+   ; make a counter to track destinations 
+    LOAD Count 
+    ADD One ;increment count
+    STORE Count
+	OUT LCD ; output destination number to LCD
+    LOAD Zero
+    OUT SSEG1
+    LOAD Zero
+    OUT SSEG2
+    JUMP WaitForX
+     
+    
+    ;blink the LEDS above PB2 so the user knows to press it as an enter key 
+    WaitForX: ;waits for user to press PB2
+    	IN SWITCHES ; input the number into the switches for x
+    	OUT SSEG1 ; output to 1st 7seg
+   	 	ISTORE pX  
+        IN TIMER 
+    	AND Mask1 ; blink LEDs
+    	SHIFT 4 ;  LED 5
+    	OUT XLEDS ;send to LEDs
+    	IN XIO ; contains KEYs
+    	AND Mask1 ;key2 mask 
+    	JPOS WaitForX ; not ready (KEYs are active-low, hence JPOS)
+    LOAD pX 
+    ADD One
+    STORE pX ;increment pX 
+    LOAD Zero 
+   	OUT XLEDS ;stop when ready to continue 
+    JUMP WaitForY
 
-
+    WaitForY: 
+    	IN SWITCHES ; input the number into the switches for x
+    	OUT SSEG2 ; output to 2nd 7seg
+   	 	ISTORE pY  
+   	 	IN TIMER 
+    	AND Mask1 ; blink LEDs
+    	SHIFT 2 ;  LED 3
+    	OUT XLEDS ;send to LEDs
+    	IN XIO ; contains KEYs
+    	AND Mask0 ;key1 mask 
+    	JPOS WaitForY ; not ready (KEYs are active-low, hence JPOS)
+    LOAD pY 
+    ADD One
+    STORE pY ;increment pY 
+    LOAD Zero 
+   	OUT XLEDS ;stop when ready to continue 
+   	
+    LOAD Count 
+	ADDI -12
+    ;SUB Twelve ;subtract 12 from count 
+    JNEG CoordinateEntry ; jump back to top of loop if haven't entered 12 destinations
 
 WaitForSafety:
-; This loop will wait for the user to toggle SW17.  Note that
+	
+
+	; This loop will wait for the user to toggle SW17.  Note that
 	; SCOMP does not have direct access to SW17; it only has access
 	; to the SAFETY signal contained in XIO.
 	; Wait for safety switch to be toggled
-
 	IN     XIO         ; XIO contains SAFETY signal
 	AND    Mask4       ; SAFETY signal is bit 4
 	JPOS   WaitForUser ; If readeltaY, jump to wait for PB3
@@ -79,10 +132,14 @@ Main: ; "Real" program starts here.
 	LOADI &H050C
 	STORE pY
 
+	LOAD  Zero
+	STORE N
+
 	;TO DO: Add capability to get Nth x and y entries and set them as DesX and DesY
 Next:
 	LOAD N 
 	ADDI -12
+	;ADDI -12 ;we are only doing four points right now to test motion, because I don't want to wait for them all.
 	JZERO Die
 
 	ILOAD pX
@@ -150,14 +207,17 @@ Cont:
 	SUB   CurrTheta
 	CALL  Mod360
 	STORE dTheta
-
+	;OUT  LCD
+	;CALL WAIT1
 
 	;Set R or L depending on quadrant
 Q1:	LOAD dTheta
 	SUB Deg90
 	JPOS Q2 ;jump to Quadrant 2 test
 	;Q1
-
+	;LOADI 1
+	;OUT  LCD
+	;CALL WAIT1
 	LOAD FullSpeed
 	STORE R ;R=250
 	CALL  CALCL
@@ -170,13 +230,15 @@ Q2:
 	SUB  Deg180
 	JPOS Q3
 	;Q2
-	
+	;LOADI 2
+	;OUT  LCD
+	;CALL WAIT1
 	LOAD ZERO
 	SUB FullSpeed
 	;LOAD FullSpeed
-	STORE L
-	CALL CALCR
 	STORE R
+	CALL CALCL
+	STORE L
 	JUMP Set
 
 Q3:
@@ -189,8 +251,10 @@ Q3:
 	JPOS Q4
 
 	;LOADI 3
-
-	LOAD FullSpeed
+	;OUT LCD
+	;CALL WAIT1
+	LOAD Zero
+	SUB FullSpeed
 	;XOR  Negone
 	;ADDI 1
 	STORE L
@@ -225,19 +289,14 @@ CheckDeadBand:
 	Load deltaX
 	CALL Abs
 	SUB  DeadBand
-	;JNEG Main
-	JNEG LIGHT
-	JUMP Cont
+	JPOS Cont
+	JUMP LIGHT
 
 LIGHT: 
 	;do lights
-	;for now, just light with total number.
-    ;worry about exact index later
-	LOAD  LedsOn
-    SHIFT 1
-    ADDI  1
-	OUT XLEDS
-    STORE LedsOn
+	;if we have N=3, light 3 lights. that means send &B..0111
+	;LOAD  N
+	;OUT XLEDS
 	LOAD Four
 	OUT  BEEP
 	LOAD Two
@@ -245,9 +304,7 @@ LIGHT:
 	LOAD ZERO
 	OUT  BEEP
 	JUMP Next
-	;set motor speeds
-	;break when DesX and DesY are less than 15? (good deadband?)
-	;increment n and go back to main
+
 
 ;*******************
 ;SIMPLE PROCEDURES
@@ -349,20 +406,25 @@ CALCR:
 ;*************************************************
 ;MOTION CONTROL VARIABLES
 ;*************************************************
+DesX:  dw 0
+DesY:  dw 0
+
 CurrX: dw 0 ;initialize current pos to 0
 CurrY: dw 0 ; initialize current pos to 0
 CurrTheta: dw 0
 deltaX: dw 0
 deltaY: dw 0
 ;This will be stored in a table somewhere after this, with ability to increment
-DesX: dw &HF0
-DesY: dw &HF0
+
 dTheta: dw 0
 DesTheta: DW 0
 ;************
 N: dw 0 ;This is the coordinate counter
 pX: DW 0
 pY: DW 0
+XHead: DW &H0500
+YHead: DW &H050C
+Count: DW 0 ;the variable for going through the coordinate entry
 
 R: dw 0
 L: dw 0
@@ -377,8 +439,6 @@ Temp: dw 0 ;for random math
 ResLR: dw 0
 
 LEDMask: DW 0;
-LedsOn: DW &B0000000000000000
-
 
 
     ;***************************************************************
@@ -793,6 +853,7 @@ Seven:    DW 7
 Eight:    DW 8
 Nine:     DW 9
 Ten:      DW 10
+Twelve:   DW 12
 Sixteen:  DW 16
 seventeen: DW 17
 

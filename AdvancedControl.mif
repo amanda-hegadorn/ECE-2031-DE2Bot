@@ -46,7 +46,7 @@ CONTENT
            021 : BD0C;  -- 	LOADI &H050C
            022 : 10BF;  -- 	STORE pY
            023 : 08BD;  -- 	LOAD N 
-           024 : 6FF4;  -- 	ADDI -12
+           024 : 6FFC;  -- 	ADDI -4 ;we are only doing four points right now to test motion, because I don't want to wait for them all.
            025 : 407F;  -- 	JZERO Die
            026 : 70BE;  -- 	ILOAD pX
            027 : 10B9;  -- 	STORE DesX
