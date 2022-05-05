@@ -37,7 +37,7 @@ CoordinateEntry:
    ; This loop will allow the user to input the 12 (x,y) coordinates
    ; to the DE2bot using the switches and PB1.
    ; Use switches to enter the coordinates in binary and display on the 7 seg
-   ; PB2 will serve as an enter key 
+   ; PB1 and PB2 will serve as an enter key 
    ; make a counter to track destinations 
     LOAD Count 
     ADD One ;increment count
@@ -127,28 +127,28 @@ WaitForUser:
 Main: ; "Real" program starts here.
 	OUT    RESETPOS    ; reset odometry in case wheels moved after programming
 
+	;The memory locations at the start of the coordinate tables are loaded and stored as pointers to X and Y.
 	LOADI &H0500
 	STORE pX
 	LOADI &H050C
 	STORE pY
-
+	
+	;The counter is set to 0
 	LOAD  Zero
 	STORE N
 
-	;TO DO: Add capability to get Nth x and y entries and set them as DesX and DesY
 Next:
 	LOAD N 
-	ADDI -12
-	;ADDI -12 ;we are only doing four points right now to test motion, because I don't want to wait for them all.
+	ADDI -12 ;we want to proceed through 12 locations
 	JZERO Die
 
-	ILOAD pX
+	ILOAD pX ;load the updated destination X
 	STORE DesX
 	
-	ILOAD pY
+	ILOAD pY ;load destination Y
 	STORE DesY
 	
-	LOAD pX 
+	LOAD pX ;increment pointers
 	ADD  One
 	STORE pX
 
@@ -156,16 +156,14 @@ Next:
 	ADD  One
 	STORE pY
 	
-	LOAD  N
-	ADDI  1
+	LOAD  N ;increment which point we are looking for
+	ADDI  1 
 	STORE N
 	OUT LCD
-	;afterwards, increment N to get next one on next cycle
-	;-1161 to 1161 x dir
-	;1451 y
+
 
 Process: 
-
+;The first part of this code calculates the dX and dY and checks the deadband
 	IN XPOS;read IN X, IN Y
 	STORE CurrX
 	OUT SSEG1
@@ -197,8 +195,7 @@ Process:
 	JPOS  Cont ;if it is not 0 or negative, continue
 	JUMP  CheckDeadBand ; if it is 0 or negative, jump to check x
 
-	;Take the tangent and determine what quadrant the angle error is in
-Cont:
+Cont: ;The code picks up back here after failing the deadband check. The quadrant of dTheta is calculated
 	CALL ATan2 ;call on the current deltaX and deltaY stored in atanx and atany
 	STORE DesTheta
 	IN    THETA
@@ -293,10 +290,7 @@ CheckDeadBand:
 	JUMP LIGHT
 
 LIGHT: 
-	;do lights
-	;if we have N=3, light 3 lights. that means send &B..0111
-	;LOAD  N
-	;OUT XLEDS
+;there are no more lights but this is where we beep
 	LOAD Four
 	OUT  BEEP
 	LOAD Two
