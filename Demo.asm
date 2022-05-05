@@ -43,10 +43,12 @@ CoordinateEntry:
     ADD One ;increment count
     STORE Count
 	OUT LCD ; output destination number to LCD
+    ; reset 7 segment displays at the beginning of the loop
     LOAD Zero
     OUT SSEG1
     LOAD Zero
     OUT SSEG2
+    ; get x coordinate first
     JUMP WaitForX
      
     
@@ -54,9 +56,9 @@ CoordinateEntry:
     WaitForX: ;waits for user to press PB2
     	IN SWITCHES ; input the number into the switches for x
     	OUT SSEG1 ; output to 1st 7seg
-   	 	ISTORE pX  
+   	ISTORE pX  ; update pointer
         IN TIMER 
-    	AND Mask1 ; blink LEDs
+    	AND Mask1 ; blink LED for user
     	SHIFT 4 ;  LED 5
     	OUT XLEDS ;send to LEDs
     	IN XIO ; contains KEYs
@@ -66,15 +68,16 @@ CoordinateEntry:
     ADD One
     STORE pX ;increment pX 
     LOAD Zero 
-   	OUT XLEDS ;stop when ready to continue 
-    JUMP WaitForY
+    OUT XLEDS ;stop when ready to continue 
+    JUMP WaitForY ; get y coordinate
 
+    ;blink the LEDS above PB1 so the user knows to press it as an enter key
     WaitForY: 
-    	IN SWITCHES ; input the number into the switches for x
+    	IN SWITCHES ; input the number into the switches for y
     	OUT SSEG2 ; output to 2nd 7seg
-   	 	ISTORE pY  
-   	 	IN TIMER 
-    	AND Mask1 ; blink LEDs
+   	ISTORE pY  ; update pointer
+   	IN TIMER 
+    	AND Mask1 ; blink LED
     	SHIFT 2 ;  LED 3
     	OUT XLEDS ;send to LEDs
     	IN XIO ; contains KEYs
@@ -84,11 +87,10 @@ CoordinateEntry:
     ADD One
     STORE pY ;increment pY 
     LOAD Zero 
-   	OUT XLEDS ;stop when ready to continue 
+    OUT XLEDS ;stop when ready to continue 
    	
     LOAD Count 
-	ADDI -12
-    ;SUB Twelve ;subtract 12 from count 
+    ADDI -12 ;subtract 12 from count
     JNEG CoordinateEntry ; jump back to top of loop if haven't entered 12 destinations
 
 WaitForSafety:
